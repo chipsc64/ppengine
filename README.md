@@ -48,8 +48,10 @@ Build on Linux with ApolloCrossDev (GCC-6.50-Dev), python3 and ffmpeg:
     make assets                      # build/data/
     make check                       # host reference test of the engine
 
-Copy `build/ppengine` and `build/data/` into one folder on the V4 and run
-`ppengine` (640x480; `ppengine LOWRES` for 320x240). It needs
+Copy `build/ppengine`, `build/ppengine.info` and `build/data/` into one
+folder on the V4 and run `ppengine` from a Shell (640x480; `ppengine LOWRES`
+for 320x240) or double-click its icon (tool type `LOWRES`; remove the
+brackets of `(LOWRES)` in the icon's Information window). It needs
 `LIBS:maggie.library` (version 4.0 tested). Keys: cursor keys drive, 1
 inserts a credit, space changes gear, Tab shows a debug map, Esc quits; a
 USB joypad (d-pad, A gas, B brake, X/Y gear, Start credit) and a DB9

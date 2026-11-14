@@ -20,7 +20,7 @@
  * Keys: cursor keys drive, 1 = credit, space = gear, Tab = debug view,
  * Esc = quit. USB joypad and DB9 joystick too (platform/amiga/game_input.c).
  *
- * Arguments:
+ * Arguments (from a Shell; from Workbench the icon's tool type LOWRES):
  *   LOWRES               320x240 instead of 640x480 (both 60 Hz)
  *   CCW                  the other front-face winding (testing)
  *   INPUTTEST            10 s of joypad/joystick readings (checks the mapping)
@@ -41,6 +41,10 @@
 #include <proto/exec.h>
 #include <hardware/custom.h>
 #include <hardware/dmabits.h>
+#include <workbench/startup.h>
+#include <workbench/workbench.h>
+#include <proto/dos.h>
+#include <proto/icon.h>
 #include "ApolloCrossDev_Lib.h"
 
 #include "ppengine/engine.h"
@@ -64,6 +68,39 @@
 
 extern struct ExecBase *SysBase;
 extern struct Custom custom;
+extern struct WBStartup *_WBenchMsg;   /* libnix: set when started from Workbench */
+struct Library *IconBase;
+
+/* Started from Workbench: messages go to a console window that opens only
+   when something is written (there is no Shell), and the icon's tool types
+   are read: LOWRES gives 320x240. */
+static void workbench_start(void) {
+	struct WBArg *arg;
+	struct DiskObject *icon;
+	BPTR old_dir;
+
+	freopen("CON:40/40/600/120/ppengine/AUTO/CLOSE/WAIT", "w", stdout);
+	IconBase = OpenLibrary((CONST_STRPTR)"icon.library", 36);
+	if (!IconBase || !_WBenchMsg || _WBenchMsg->sm_NumArgs < 1) {
+		if (IconBase) {
+			CloseLibrary(IconBase);
+			IconBase = NULL;
+		}
+		return;
+	}
+	arg = &_WBenchMsg->sm_ArgList[0];
+	old_dir = CurrentDir(arg->wa_Lock);
+	icon = GetDiskObject((CONST_STRPTR)arg->wa_Name);
+	if (icon) {
+		if (FindToolType((CONST_STRPTR *)icon->do_ToolTypes, (CONST_STRPTR)"LOWRES")) {
+			saga_display_select(0);
+		}
+		FreeDiskObject(icon);
+	}
+	CurrentDir(old_dir);
+	CloseLibrary(IconBase);
+	IconBase = NULL;
+}
 
 /* KB os/best-practices/detect-68080-and-fpu-at-run-time.md */
 static int has_68080(void) { return (SysBase->AttnFlags & (1 << 10)) != 0; }
@@ -417,6 +454,9 @@ int main(int argc, char **argv) {
 	int i;
 	ULONG old_sr;
 
+	if (argc == 0) {
+		workbench_start();
+	}
 	if (!has_68080() || !has_fpu()) {
 		printf("ppengine needs an Apollo 68080 with its FPU switched on.\n");
 		return RETURN_FAIL;

@@ -417,6 +417,12 @@ kloppen. Het spel zelf (takeover) moet nog door de gebruiker getest worden.
   90/150/250; `LOWRES` houdt 25/50/150). Kosten: start 47 → 55 ms, portaal
   naderen 22 → 32 ms, elders 16–21 ms; de X-vakken naast de START-banner
   zijn weer heel (op afstand werden ze massief).
+- Workbench-pictogram (verzoek gebruiker): `tools/make_icon.py` (via `make
+  assets`) schrijft `build/ppengine.info`: klassiek 4-kleurenpictogram
+  (raceauto van achteren), stack 128 KB, tooltype `(LOWRES)`. Bij een start
+  vanaf de Workbench leest `main_amiga.c` de tooltypes (icon.library) en gaan
+  meldingen naar een `CON:`-venster dat pas opengaat als er iets te melden
+  is. Getest door de gebruiker: start vanaf de Workbench werkt.
 
 ### Fase 5 – Geluid op Arne (vervangt `src/audio/gorilla/`)
 - [x] T27 `src/audio/arne/` met dezelfde functies als `gorilla/audio.h`.

@@ -10,7 +10,8 @@
 # make                same as 'make compile'
 # make host-headless  build the headless reference test for the host (Linux)
 # make check          run the host test and save its output in build/
-# make assets         convert models, textures, images, font and sounds into build/data
+# make assets         convert models, textures, images, font and sounds into build/data,
+#                     and write the Workbench icon build/ppengine.info
 # make clean          remove build/
 #
 # The project folder can be anywhere: set APOLLOCROSSDEV to the
@@ -136,6 +137,7 @@ $(HOST_HEADLESS_EXE): $(CORE_C_FILES) $(HEADLESS_C_FILES)
 # python3 and ffmpeg. See tools/convert_assets.py for the file formats.
 assets:
 	python3 tools/convert_assets.py --out $(BUILD_DIR)/data
+	python3 tools/make_icon.py --out $(BUILD_DIR)/ppengine.info
 
 check: $(HOST_HEADLESS_EXE)
 	$(HOST_HEADLESS_EXE) > $(BUILD_DIR)/headless_host.txt
