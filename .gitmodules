@@ -1,0 +1,3 @@
+[submodule "third_party/MaggieLibrary"]
+	path = third_party/MaggieLibrary
+	url = https://github.com/RMortenB/MaggieLibrary

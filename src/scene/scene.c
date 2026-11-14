@@ -1,8 +1,16 @@
 #include "scene/scene.h"
 #include "track_geometry/track_geometry.h"
-#include "scene/osg/scene.h"
-#include <cstdio>
-#include <cstring>
+#include "scene/backend.h"
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+/* Logging to the console is too slow under an os-takeover. */
+#ifdef SCENE_DEBUG
+#define SCENE_LOG(...) printf(__VA_ARGS__)
+#else
+#define SCENE_LOG(...) do { } while (0)
+#endif
 
 #define DISPLAY_MODE_BLANK 0
 #define DISPLAY_MODE_TITLE_SCREEN 1
@@ -11,51 +19,57 @@
 
 static int previous_car_object_type_and_visibility[12];
 static int explosion_detection_enabled=0;
-static hudentry previous_frame_hud_content[HUD_CONTENT_LENGTH];
+static struct hudentry previous_frame_hud_content[HUD_CONTENT_LENGTH];
 static int previous_gantry_and_starting_lights_appearance;
 static int old_display_mode=DISPLAY_MODE_BLANK;
 
 static void update_scene_graph_from_display_mode(int display_mode);
 
-void scene_open(struct sceneryobject *scenery_objects) {
+int scene_open(struct sceneryobject *scenery_objects) {
 	int index;
 	struct sceneryobject *current_scenery_object;
 	struct vertex2d world_coordinates;
 	double rotation_radians;
 
 	current_scenery_object=scenery_objects;
-	osg_scene_open();
+	if (!scene_backend_open()) {
+		return 0;
+	}
 	for (index=0; index<24; index++) {
-		world_coordinates=track_geometry_get_object_world_coordinates(current_scenery_object->forward_position*65536,current_scenery_object->sideways_position);
-		rotation_radians=track_geometry_get_object_natural_rotation_radians(current_scenery_object->forward_position*65536);
-		osg_scene_add_scenery_object(world_coordinates.x,world_coordinates.y,rotation_radians,current_scenery_object->scenery_appearance);
+		world_coordinates=track_geometry_get_object_world_coordinates((uint32_t)current_scenery_object->forward_position<<16,current_scenery_object->sideways_position);
+		rotation_radians=track_geometry_get_object_natural_rotation_radians((uint32_t)current_scenery_object->forward_position<<16);
+		scene_backend_add_scenery_object(world_coordinates.x,world_coordinates.y,rotation_radians,current_scenery_object->scenery_appearance);
 		current_scenery_object++;
 	}
-	world_coordinates=track_geometry_get_object_world_coordinates(0xffe00000,0);
-	rotation_radians=track_geometry_get_object_natural_rotation_radians(0);
-	osg_scene_add_gantry(world_coordinates.x,world_coordinates.y,rotation_radians);
+	/* Gantry over the start line, just beyond the front row of the grid
+	   (segment 32; the OSG version used segment 65504, behind the front row:
+	   see START_LINE_QUAD in scene/maggie/maggie_backend.c). */
+	world_coordinates=track_geometry_get_object_world_coordinates(0x00200000,0);
+	rotation_radians=track_geometry_get_object_natural_rotation_radians(0x00200000);
+	scene_backend_add_gantry(world_coordinates.x,world_coordinates.y,rotation_radians);
 	for (index=0; index<4; index++) {
-		osg_scene_set_gantry_light_illumination(index,0);
+		scene_backend_set_gantry_light_illumination(index,0);
 	}
 	explosion_detection_enabled=0;
+	return 1;
 }
 
 void scene_close() {
-	osg_scene_close();
+	scene_backend_close();
 }
 
 void scene_generate_frame() {
-	osg_scene_generate_frame();
+	scene_backend_generate_frame();
 }
 
 void scene_update_moving_objects_and_camera(struct movingobject *moving_objects, uint32_t player_forward_position, int16_t steering_or_car_orientation) {
 	int type;
 	int visible;
-	vertex2d world_coordinates;
-	vertex2d camera_coordinates;
+	struct vertex2d world_coordinates;
+	struct vertex2d camera_coordinates;
 	struct movingobject *current_object;
 	int object_index;
-	int model;
+	int model=0;
 	double natural_rotation_radians;
 	double steering_adjusted_rotation_radians;
 	uint32_t object_forward_position;
@@ -74,11 +88,11 @@ void scene_update_moving_objects_and_camera(struct movingobject *moving_objects,
 					model=0;
 					if (explosion_detection_enabled) {
 						if ((current_object->type_and_visibility==0x8004) && (previous_car_object_type_and_visibility[object_index]!=0x8004)) {
-							printf("car at object index %d changed from %x to %x - starting explosion\n",object_index,previous_car_object_type_and_visibility[object_index],current_object->type_and_visibility);
-							osg_scene_start_car_explosion(object_index);
+							SCENE_LOG("car at object index %d changed from %x to %x - starting explosion\n",object_index,previous_car_object_type_and_visibility[object_index],current_object->type_and_visibility);
+							scene_backend_start_car_explosion(object_index);
 						} else if ((previous_car_object_type_and_visibility[object_index]==0x8004) && (current_object->type_and_visibility!=0x8004)) {
-							printf("car at object index %d changed from %x to %x - ending explosion\n",object_index,previous_car_object_type_and_visibility[object_index],current_object->type_and_visibility);
-							osg_scene_end_car_explosion(object_index);
+							SCENE_LOG("car at object index %d changed from %x to %x - ending explosion\n",object_index,previous_car_object_type_and_visibility[object_index],current_object->type_and_visibility);
+							scene_backend_end_car_explosion(object_index);
 						}
 					}
 					break;
@@ -96,16 +110,16 @@ void scene_update_moving_objects_and_camera(struct movingobject *moving_objects,
 					}
 					if (explosion_detection_enabled) {
 						if ((current_object->type_and_visibility==0x8003) && (previous_car_object_type_and_visibility[object_index]!=0x8003)) {
-							printf("car at object index %d changed from %x to %x - starting explosion\n",object_index,previous_car_object_type_and_visibility[object_index],current_object->type_and_visibility);
-							osg_scene_start_car_explosion(object_index);
+							SCENE_LOG("car at object index %d changed from %x to %x - starting explosion\n",object_index,previous_car_object_type_and_visibility[object_index],current_object->type_and_visibility);
+							scene_backend_start_car_explosion(object_index);
 						} else if ((previous_car_object_type_and_visibility[object_index]==0x8003) && (current_object->type_and_visibility!=0x8003)) {
-							printf("car at object index %d changed from %x to %x - ending explosion\n",object_index,previous_car_object_type_and_visibility[object_index],current_object->type_and_visibility);
-							osg_scene_end_car_explosion(object_index);
+							SCENE_LOG("car at object index %d changed from %x to %x - ending explosion\n",object_index,previous_car_object_type_and_visibility[object_index],current_object->type_and_visibility);
+							scene_backend_end_car_explosion(object_index);
 						}
 					}
 					break;
 				case 0x7:
-					model=1; // puddle
+					model=MOVING_OBJECT_MODEL_PUDDLE; // the OSG version showed car model 1 here
 					break;
 				case 0xa:
 					model=0;
@@ -126,7 +140,7 @@ void scene_update_moving_objects_and_camera(struct movingobject *moving_objects,
 			steering_adjusted_rotation_radians=natural_rotation_radians+((float)steering_or_car_orientation/400);
 		}
 
-		osg_scene_set_moving_object_attributes(
+		scene_backend_set_moving_object_attributes(
 			object_index,
 			world_coordinates.x,
 			world_coordinates.y,
@@ -143,7 +157,7 @@ void scene_update_moving_objects_and_camera(struct movingobject *moving_objects,
 	camera_coordinates.x=world_coordinates.x-cos(natural_rotation_radians)*22;
 	camera_coordinates.y=world_coordinates.y-sin(natural_rotation_radians)*22;
 
-	osg_scene_set_camera_position(
+	scene_backend_set_camera_position(
 		camera_coordinates.x,
 		camera_coordinates.y,
 		world_coordinates.x,
@@ -157,10 +171,10 @@ void scene_update_gantry(int gantry_and_starting_lights_appearance) {
 	int index;
 
 	if (gantry_and_starting_lights_appearance!=previous_gantry_and_starting_lights_appearance) {
-		printf("gantry appearance changed to %d\n",gantry_and_starting_lights_appearance);
+		SCENE_LOG("gantry appearance changed to %d\n",gantry_and_starting_lights_appearance);
 		if (gantry_and_starting_lights_appearance>=0 && gantry_and_starting_lights_appearance<=4) {
 			for (index=0; index<4; index++) {
-				osg_scene_set_gantry_light_illumination(index,(index+1)==gantry_and_starting_lights_appearance);
+				scene_backend_set_gantry_light_illumination(index,(index+1)==gantry_and_starting_lights_appearance);
 			}
 		}
 	}
@@ -178,7 +192,7 @@ void scene_update_hud_content(struct hudentry *hud_content) {
 		for (hud_x=0; hud_x<HUD_CHARACTER_WIDTH; hud_x++) {
 			if ((current_hud_entry->character!=current_last_frame_hud_entry->character) ||
                 (current_hud_entry->attribute!=current_last_frame_hud_entry->attribute)) {
-				osg_scene_update_hud_character(hud_x,hud_y,current_hud_entry->character,current_hud_entry->attribute);
+				scene_backend_update_hud_character(hud_x,hud_y,current_hud_entry->character,current_hud_entry->attribute);
 			}
 			current_hud_entry++;
 			current_last_frame_hud_entry++;
@@ -215,22 +229,22 @@ void scene_update_display_mode_from_game_state(int jump_table_function_number, i
 }
 
 int scene_active() {
-	return osg_scene_active();
+	return scene_backend_active();
 }
 
 static void update_scene_graph_from_display_mode(int display_mode) {
 	switch(display_mode) {
 		case DISPLAY_MODE_TITLE_SCREEN:
-			osg_scene_set_display_channel(DISPLAY_CHANNEL_TITLE_SCREEN);
-			osg_scene_set_game_over_visibility(0);
+			scene_backend_set_display_channel(DISPLAY_CHANNEL_TITLE_SCREEN);
+			scene_backend_set_game_over_visibility(0);
 		break;
 		case DISPLAY_MODE_DEMO:
-			osg_scene_set_display_channel(DISPLAY_CHANNEL_IN_GAME);
-			osg_scene_set_game_over_visibility(1);
+			scene_backend_set_display_channel(DISPLAY_CHANNEL_IN_GAME);
+			scene_backend_set_game_over_visibility(1);
 		break;
 		case DISPLAY_MODE_IN_GAME:
-			osg_scene_set_display_channel(DISPLAY_CHANNEL_IN_GAME);
-			osg_scene_set_game_over_visibility(0);
+			scene_backend_set_display_channel(DISPLAY_CHANNEL_IN_GAME);
+			scene_backend_set_game_over_visibility(0);
 		break;
 	}
 }

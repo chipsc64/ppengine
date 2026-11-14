@@ -30,3 +30,27 @@ Once you've run the 'client' executable, the game window will pop up. The initia
 
 Press '1' to start a game. Arrow keys will steer, brake and accelerate. Space toggles between low and high gear.
 
+
+## Apollo V4 (Amiga, SAGA) version
+
+The `ApolloAmiga` branch ports ppengine to the Apollo V4 (68080, SAGA) on
+AmigaOS 3.9: the arcade game logic is unchanged; rendering uses Maggie
+through maggie.library, sound uses Arne, and the game takes over the
+machine (os-takeover). The plan, the task list and the status of every
+step are in `AMIGA_PORT_PLAN.md` (Dutch); notes for coding agents in
+`AGENTS.md`.
+
+Build on Linux with ApolloCrossDev (GCC-6.50-Dev), python3 and ffmpeg:
+
+    git submodule update --init      # third_party/MaggieLibrary (headers)
+    export APOLLOCROSSDEV=~/ApolloCrossDev
+    make compile                     # build/ppengine, build/ppengine_headless
+    make assets                      # build/data/
+    make check                       # host reference test of the engine
+
+Copy `build/ppengine` and `build/data/` into one folder on the V4 and run
+`ppengine` (640x480; `ppengine LOWRES` for 320x240). It needs
+`LIBS:maggie.library` (version 4.0 tested). Keys: cursor keys drive, 1
+inserts a credit, space changes gear, Tab shows a debug map, Esc quits; a
+USB joypad (d-pad, A gas, B brake, X/Y gear, Start credit) and a DB9
+joystick work too. The original Linux build is `Makefile.linux`.

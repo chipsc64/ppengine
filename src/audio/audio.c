@@ -1,6 +1,5 @@
 #include "audio/audio.h"
-#include "audio/gorilla/audio.h"
-#include "stdio.h"
+#include "audio/backend.h"
 #include "engine.h"
 #include <stdlib.h>
 
@@ -12,12 +11,12 @@ static int previous_player_engine_sound_active;
 static int previous_player_type_and_visibility;
 static int previous_skidding_volume;
 
-void audio_open() {
-	gorilla_audio_open();
+int audio_open(void) {
+	return audio_backend_open();
 }
 
-void audio_close() {
-	gorilla_audio_close();
+void audio_close(void) {
+	audio_backend_close();
 }
 
 void audio_update(struct movingobject *moving_objects, uint16_t player_engine_pitch, uint16_t player_engine_sound_active, uint16_t skidding_volume) {
@@ -29,11 +28,11 @@ void audio_update(struct movingobject *moving_objects, uint16_t player_engine_pi
 	for (object_index=0; object_index<ENGINE_SOUND_COUNT-1; object_index++) {
 		if (explosion_detection_enabled) {
 			if ((current_object->type_and_visibility==0x8003) && (previous_car_object_type_and_visibility[object_index]!=0x8003)) {
-				gorilla_audio_stop_engine_loop(object_index);
+				audio_backend_stop_engine_loop(object_index);
 			} else if ((current_object->type_and_visibility==0x8002) && (previous_car_object_type_and_visibility[object_index]==0x2)) {
-				gorilla_audio_start_engine_loop(object_index);
+				audio_backend_start_engine_loop(object_index);
 			} else if ((current_object->type_and_visibility==0x2) && (previous_car_object_type_and_visibility[object_index]==0x8002)) {
-				gorilla_audio_stop_engine_loop(object_index);
+				audio_backend_stop_engine_loop(object_index);
 			}
 		}
 
@@ -52,7 +51,7 @@ void audio_update(struct movingobject *moving_objects, uint16_t player_engine_pi
 		}
 
 		if (current_object->type_and_visibility==0x8002) {
-			gorilla_audio_set_engine_attributes(
+			audio_backend_set_engine_attributes(
 				object_index,
 				current_object->current_speed,
 				current_object->player_sideways_position_difference,
@@ -65,17 +64,19 @@ void audio_update(struct movingobject *moving_objects, uint16_t player_engine_pi
 
 	current_object=&moving_objects[11];
 	if ((current_object->type_and_visibility==0x8004) && (previous_player_type_and_visibility!=0x8004)) {
-		//gorilla_audio_start_explosion(object_index);
+		if (jump_table_function_number==3) {
+			audio_backend_play_effect(AUDIO_EFFECT_EXPLOSION);
+		}
 	}
 	if ((player_engine_sound_active&1)!=(previous_player_engine_sound_active&1)) {
 		if (player_engine_sound_active) {
-			gorilla_audio_start_engine_loop(ENGINE_SOUND_COUNT-1);
+			audio_backend_start_engine_loop(ENGINE_SOUND_COUNT-1);
 		} else {
-			gorilla_audio_stop_engine_loop(ENGINE_SOUND_COUNT-1);
+			audio_backend_stop_engine_loop(ENGINE_SOUND_COUNT-1);
 		}
 	}
 	if (player_engine_sound_active) {
-		gorilla_audio_set_engine_attributes(
+		audio_backend_set_engine_attributes(
 			ENGINE_SOUND_COUNT-1,
 			player_engine_pitch*55000,
 			0,
@@ -88,12 +89,12 @@ void audio_update(struct movingobject *moving_objects, uint16_t player_engine_pi
 	}
 	if (previous_skidding_volume!=skidding_volume) {
 		if (skidding_volume==0) {
-			gorilla_audio_stop_skidding_loop();
+			audio_backend_stop_skidding_loop();
 		} else {
 			if (previous_skidding_volume==0) {
-				gorilla_audio_start_skidding_loop();
+				audio_backend_start_skidding_loop();
 			}
-			gorilla_audio_set_skidding_loop_volume(skidding_volume);
+			audio_backend_set_skidding_loop_volume(skidding_volume);
 		}
 	}
 
@@ -101,12 +102,49 @@ void audio_update(struct movingobject *moving_objects, uint16_t player_engine_pi
 	previous_player_type_and_visibility=current_object->type_and_visibility;
 	previous_skidding_volume=skidding_volume;
 
+	/* Voice samples: the arcade code sets sample_player_1 to a sample number
+	   (and the sound CPU cleared it). 2 = "Prepare to qualify", at the start
+	   of a game (frame handler 66a). 3, 4 and bit 5 ask for samples we do
+	   not have. */
+	if (sample_player_1) {
+		if ((sample_player_1==2) && (jump_table_function_number==3)) {
+			audio_backend_play_voice(AUDIO_VOICE_PREPARE_TO_QUALIFY);
+		}
+		sample_player_1=0;
+	}
+
+	/* Bonus counting: the arcade code sets these sound bits (and the sound
+	   CPU cleared them); the Linux version ignored them. */
+	if (sample_player_2&(0x80|0x02)) {
+		sample_player_2&=~(0x80|0x02);
+		audio_backend_play_effect(AUDIO_EFFECT_BONUS_TICK);
+	}
+
 	explosion_detection_enabled=1;	
-	gorilla_audio_update();
+	audio_backend_update();
 }
 
+/* The engine's sound effect callback. The Linux version only printed the
+   index; the meanings come from the engine source comments. */
 void audio_play_effect(int effect_index) {
-	printf("** sound effect callback %d\n",effect_index);
+	/* Silent outside a game, like the engine sounds (the demo uses the same
+	   code paths). Game state 3 = a game is running. */
+	if (jump_table_function_number!=3) {
+		return;
+	}
+	switch (effect_index) {
+		case 12:  /* starting light: sub/common/aba.c */
+			audio_backend_play_effect(AUDIO_EFFECT_START_LIGHT);
+			break;
+		case 13:  /* last starting light, go */
+			audio_backend_play_effect(AUDIO_EFFECT_START_GO);
+			break;
+		case 7:   /* extended play beeps: sub/common/1708.c */
+			audio_backend_play_effect(AUDIO_EFFECT_EXTENDED_PLAY);
+			break;
+		default:
+			break;
+	}
 }
 
 

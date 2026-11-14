@@ -3,7 +3,9 @@
 #include <inttypes.h>
 #include "geometry/vertex2d.h"
 
+#ifndef M_PI
 #define M_PI 3.14159265358979323846
+#endif
 #define SEGMENT_LENGTH 40
 #define START_FINISH_LINE_X_DIFFERENCE -1349.705865
 #define START_FINISH_LINE_Y_DIFFERENCE 3101.237153

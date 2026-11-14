@@ -1,2 +1,4 @@
 http://soundbible.com/1178-Tires-Squealing.html
 
+
+prepare_to_qualify.wav (was "SOUND 19.wav") and crash.wav (was "SOUND 17.wav"): provided by the developer, 2026-11-14.

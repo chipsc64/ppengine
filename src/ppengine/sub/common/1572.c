@@ -25,8 +25,11 @@ void common_1572() {
 
 	// loc_1598
 	safe_to_change_gantry_appearance=0;
-	if (((display_road_vertical_scroll-0xc000)>display_road_vertical_scroll) ||
-        ((forward_position_msw_temp-0xc000)<forward_position_msw_temp)) {
+	// The arcade CPU does this arithmetic in 16 bits. Without the casts C
+	// promotes to int, the first test is always false and the second always
+	// true, so the gantry appearance could never change.
+	if (((uint16_t)(display_road_vertical_scroll-0xc000)>display_road_vertical_scroll) ||
+        ((uint16_t)(forward_position_msw_temp-0xc000)<forward_position_msw_temp)) {
 		safe_to_change_gantry_appearance=0;
 	} else {
 		safe_to_change_gantry_appearance=1;

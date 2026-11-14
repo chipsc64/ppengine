@@ -6,7 +6,7 @@
 #include "scene/gantry_appearance_type.h"
 #include "engine.h"
 
-void scene_open(struct sceneryobject *scenery_objects);
+int scene_open(struct sceneryobject *scenery_objects);  /* 0 on failure */
 void scene_close();
 void scene_generate_frame();
 void scene_update_moving_objects_and_camera(struct movingobject *moving_objects, uint32_t player_forward_position, int16_t steering_or_car_orientation);

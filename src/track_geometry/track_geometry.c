@@ -4,8 +4,11 @@
 #include "track_geometry/points.h"
 #include "track_geometry/subpoints.h"
 #include <stdlib.h>
+#include <math.h>
 
+#ifndef M_PI
 #define M_PI 3.14159265358979323846
+#endif
 
 int track_geometry_initialise(int8_t *track_curve_data) {
 	if (!allocate_points()) {
@@ -63,7 +66,7 @@ double track_geometry_get_object_natural_rotation_radians(uint32_t forward_posit
 	segments=get_segments();
 	current_segment_angle=segments[(forward_position>>16)].angle_radians;
 	next_segment_angle=segments[((forward_position>>16)+1)&65535].angle_radians;
-	if (abs(next_segment_angle-current_segment_angle)>(M_PI)) {
+	if (fabs(next_segment_angle-current_segment_angle)>(M_PI)) {
 		if (next_segment_angle<current_segment_angle) {
 			next_segment_angle+=M_PI*2;
 		} else {
