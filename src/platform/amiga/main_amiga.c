@@ -71,15 +71,29 @@ extern struct Custom custom;
 extern struct WBStartup *_WBenchMsg;   /* libnix: set when started from Workbench */
 struct Library *IconBase;
 
-/* Started from Workbench: messages go to a console window that opens only
-   when something is written (there is no Shell), and the icon's tool types
-   are read: LOWRES gives 320x240. */
+/* Started from Workbench: the icon's tool types are read (LOWRES gives
+   320x240), and messages go to a console window that opens only when
+   something is written (there is no Shell). Informational messages are left
+   out then, so a normal game opens no window at all; an error stays on
+   screen for 5 seconds, then the window closes with the program. */
+static int from_workbench;
+#define INFO(...) do { if (!from_workbench) printf(__VA_ARGS__); } while (0)
+
+static int finish(int result) {
+	if (from_workbench && result != RETURN_OK) {
+		fflush(stdout);
+		Delay(5 * 50);
+	}
+	return result;
+}
+
 static void workbench_start(void) {
 	struct WBArg *arg;
 	struct DiskObject *icon;
 	BPTR old_dir;
 
-	freopen("CON:40/40/600/120/ppengine/AUTO/CLOSE/WAIT", "w", stdout);
+	from_workbench = 1;
+	freopen("CON:40/40/600/120/ppengine/AUTO/CLOSE", "w", stdout);
 	IconBase = OpenLibrary((CONST_STRPTR)"icon.library", 36);
 	if (!IconBase || !_WBenchMsg || _WBenchMsg->sm_NumArgs < 1) {
 		if (IconBase) {
@@ -362,7 +376,7 @@ static int run_game(void) {
 		audio_close();
 		return RETURN_FAIL;
 	}
-	printf("ppengine: starting. Cursor keys/joypad/joystick drive, 1/Start = credit, space/X/Y/fire = gear, Tab = debug view, Esc = quit.\n");
+	INFO("ppengine: starting. Cursor keys/joypad/joystick drive, 1/Start = credit, space/X/Y/fire = gear, Tab = debug view, Esc = quit.\n");
 
 	/* Take over (T06): VBlank counter, our interrupt servers (display flip,
 	   keyboard), Workbench closed, multitasking off. */
@@ -434,14 +448,14 @@ static int run_game(void) {
 	ApolloTimerStop();
 	saga_display_close();
 
-	printf("ppengine: %lu frames (%lu shown), %lu engine ticks, %lu ticks dropped, %lu VBlanks.\n",
+	INFO("ppengine: %lu frames (%lu shown), %lu engine ticks, %lu ticks dropped, %lu VBlanks.\n",
 		(unsigned long)frames, (unsigned long)irq_state.flips, (unsigned long)engine_ticks,
 		(unsigned long)dropped_ticks, (unsigned long)(last_vblank - start_vblank));
 	if (frames) {
-		printf("ppengine: render %lu ms average, %lu ms worst.\n",
+		INFO("ppengine: render %lu ms average, %lu ms worst.\n",
 			(unsigned long)(render_cycles / frames * 64 / per_ms),
 			(unsigned long)(render_worst / per_ms));
-		printf("ppengine: frames rendered within 1 VBlank %lu%%, 2 %lu%%, 3 %lu%%, more %lu%%.\n",
+		INFO("ppengine: frames rendered within 1 VBlank %lu%%, 2 %lu%%, 3 %lu%%, more %lu%%.\n",
 			(unsigned long)(within[0] * 100 / frames), (unsigned long)(within[1] * 100 / frames),
 			(unsigned long)(within[2] * 100 / frames), (unsigned long)(within[3] * 100 / frames));
 	}
@@ -459,7 +473,7 @@ int main(int argc, char **argv) {
 	}
 	if (!has_68080() || !has_fpu()) {
 		printf("ppengine needs an Apollo 68080 with its FPU switched on.\n");
-		return RETURN_FAIL;
+		return finish(RETURN_FAIL);
 	}
 	for (i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "LOWRES") == 0) {
@@ -497,19 +511,19 @@ int main(int argc, char **argv) {
 	old_sr = SetSR(SR_APOLLO_BIT, SR_APOLLO_BIT);
 
 	/* While the OS runs: track, assets, maggie buffers (T07). */
-	printf("ppengine: building the track and loading the data...\n");
+	INFO("ppengine: building the track and loading the data...\n");
 	engine_initialise();
 	engine_register_sound_effect_callback(sound_effect);
 	if (!track_geometry_initialise(track_curve_data)) {
 		SetSR(old_sr, SR_APOLLO_BIT);
-		return RETURN_FAIL;
+		return finish(RETURN_FAIL);
 	}
 	if (!scene_open(scenery_objects)) {
 		printf("ppengine: cannot start the renderer: %s\n",
 			assets_error()[0] ? assets_error() : "cannot open maggie.library");
 		track_geometry_terminate();
 		SetSR(old_sr, SR_APOLLO_BIT);
-		return RETURN_FAIL;
+		return finish(RETURN_FAIL);
 	}
 
 	if (first_tick_argument) {
@@ -521,5 +535,5 @@ int main(int argc, char **argv) {
 	scene_close();
 	track_geometry_terminate();
 	SetSR(old_sr, SR_APOLLO_BIT);
-	return result;
+	return finish(result);
 }

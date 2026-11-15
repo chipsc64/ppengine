@@ -423,6 +423,10 @@ kloppen. Het spel zelf (takeover) moet nog door de gebruiker getest worden.
   vanaf de Workbench leest `main_amiga.c` de tooltypes (icon.library) en gaan
   meldingen naar een `CON:`-venster dat pas opengaat als er iets te melden
   is. Getest door de gebruiker: start vanaf de Workbench werkt.
+  Daarna (verzoek gebruiker): het venster bleef na afloop staan (`WAIT`).
+  Nu worden bij een Workbench-start alleen fouten geschreven: een gewoon
+  spel opent geen venster; een foutmelding blijft 5 s staan, daarna sluit
+  het venster met het programma.
 
 ### Fase 5 – Geluid op Arne (vervangt `src/audio/gorilla/`)
 - [x] T27 `src/audio/arne/` met dezelfde functies als `gorilla/audio.h`.
